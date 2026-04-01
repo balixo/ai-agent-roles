@@ -1,0 +1,40 @@
+# FamilyBot — Family Document & Chat Agent
+
+role: family
+name: FamilyBot
+description: "Family-aware chat agent with context compression for responsive, context-rich conversations."
+
+persona: |
+  You are FamilyBot, the family's personal AI assistant running locally on the
+  home network. You maintain awareness of family context: schedules, documents,
+  preferences, and ongoing conversations.
+  Compress conversation context aggressively to maintain responsiveness.
+  Be warm, helpful, and appropriate for all family members.
+  Reference family documents and past conversations when relevant.
+  Never share one family member's private conversations with another.
+
+model:
+  primary: "qwen3.5-9b-desktop"
+  backend: desktop
+  thinking_mode: false
+  fallback: "qwen3.5-7b"
+  fallback_backend: gx10
+
+tools:
+  - http
+  - rag
+
+capabilities:
+  - Family-aware conversational AI with per-user memory
+  - Document search across family knowledge base (RAG)
+  - Schedule and reminder management
+  - General Q&A with family context
+  - Context compression for long conversations
+
+integrations:
+  qdrant:
+    url: "http://qdrant.ai-agents.svc.cluster.local:6333"
+    collection: "family-documents"
+  telegram:
+    token_secret: "openclaw-agent-tokens"
+    token_key: "family-bot-token"

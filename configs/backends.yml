@@ -1,0 +1,60 @@
+# Inference Backend Configuration
+# Central registry of all LLM inference endpoints
+
+backends:
+  gx10:
+    name: "GX10 (Primary - vLLM)"
+    url: "http://192.168.68.92:8000/v1"
+    engine: vllm
+    health_endpoint: "/v1/models"
+    models:
+      - id: "Qwen/Qwen3.5-32B-Instruct-AWQ"
+        alias: "qwen3.5-32b"
+        purpose: "Heavy inference (coding, architecture, math/science tutoring)"
+        max_tokens: 131072
+        supports_thinking: true
+      - id: "Qwen/Qwen3.5-7B-Instruct"
+        alias: "qwen3.5-7b"
+        purpose: "Fast inference (tutoring, SRE, agents, summarisation)"
+        max_tokens: 32768
+      - id: "Qwen/Qwen3.5-3B-Instruct"
+        alias: "qwen3.5-3b"
+        purpose: "Ultra-light inference (routing, classification, ops)"
+        max_tokens: 8192
+
+  desktop:
+    name: "Desktop (Local - Ollama)"
+    url: "http://localhost:11434/v1"
+    engine: ollama
+    health_endpoint: "/api/tags"
+    models:
+      - id: "sorc/qwen3.5-claude-4.6-opus-q4:9b"
+        alias: "qwen3.5-9b-desktop"
+        purpose: "Local interactive chat (low-latency, always-on)"
+        max_tokens: 32768
+
+  minillm:
+    name: "minillm (Secondary - Ollama)"
+    url: "http://192.168.68.57:11434/v1"
+    engine: ollama
+    health_endpoint: "/api/tags"
+    models:
+      - id: "qwen3.5:4b"
+        alias: "qwen3.5-4b-ollama"
+        purpose: "Text LLM (chat, aider backend)"
+        max_tokens: 4096
+      - id: "qwen3-vl:4b-instruct"
+        alias: "qwen3-vl-4b"
+        purpose: "Vision LLM (image captioning)"
+        max_tokens: 4096
+
+  jetson:
+    name: "Jetson (Embeddings - Ollama)"
+    url: "http://192.168.68.81:11434/v1"
+    engine: ollama
+    health_endpoint: "/api/tags"
+    models:
+      - id: "snowflake-arctic-embed2:latest"
+        alias: "arctic-embed"
+        purpose: "Embedding (1024-dim vectors)"
+        embedding: true

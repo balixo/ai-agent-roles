@@ -1,0 +1,180 @@
+# Agent-to-Model Routing Rules
+# Determines which model serves each agent based on task complexity
+#
+# ── Router Logic ────────────────────────────────────────────────────────────
+# The router inspects the agent role and routes to the appropriate backend/model.
+# vLLM handles request queuing natively — concurrent requests to the same model
+# share weights in memory (PagedAttention). No external load balancer needed.
+#
+# ── Load Balancing Strategy ─────────────────────────────────────────────────
+# 1. vLLM internal: PagedAttention multiplexes concurrent requests per model
+# 2. Model-level: 32B/7B/3B loaded simultaneously (~66 GB of 128 GB)
+# 3. Node-level: Desktop Ollama serves as local fallback for interactive chat
+# 4. Overflow: If GX10 queue > threshold, route to minillm or desktop
+#
+# ── Thinking Mode ──────────────────────────────────────────────────────────
+# Models with thinking_mode=true use /think prefix and enable_thinking=True.
+# Recommended for: math proofs, physics derivations, architecture decisions,
+#   code review, complex debugging
+# Not recommended for: simple Q&A, classification, ops commands, casual chat
+
+routing:
+  default_backend: gx10
+  default_model: "qwen3.5-7b"
+
+  # ── Coding Agents ───────────────────────────────────────────────────────
+  agents:
+    dev:
+      backend: gx10
+      model: "qwen3.5-32b"
+      context_length: 131072
+      thinking_mode: true
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "Feature implementation needs strong reasoning + full project context"
+
+    jr-dev:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Simple bugs, docs, routine tasks — speed over depth"
+
+    sr-dev:
+      backend: gx10
+      model: "qwen3.5-32b"
+      context_length: 131072
+      thinking_mode: true
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "Code review and architecture guidance require depth + full codebase"
+
+    sre:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Diagnostics need speed over depth"
+
+    tester:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Test generation is formulaic, 7B is sufficient"
+
+    # ── Education Agents (from ai-tutor-prompts) ──────────────────────────
+    math-teacher:
+      backend: gx10
+      model: "qwen3.5-32b"
+      context_length: 32768
+      thinking_mode: true
+      temperature: 0.6
+      top_p: 0.95
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "AMC/AP Calc requires deep mathematical reasoning with step-by-step proofs"
+
+    science-teacher:
+      backend: gx10
+      model: "qwen3.5-32b"
+      context_length: 32768
+      thinking_mode: true
+      temperature: 0.6
+      top_p: 0.95
+      fallback_backend: gx10
+      fallback_model: "qwen3.5-7b"
+      reason: "Physics/chemistry derivations need calculus-level reasoning"
+
+    english-teacher:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      temperature: 0.7
+      top_p: 0.8
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "Writing feedback is iterative, 7B has good writing quality"
+
+    chinese-teacher:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      temperature: 0.7
+      top_p: 0.8
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Qwen is natively strong in Chinese at all parameter sizes"
+
+    history-teacher:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      temperature: 0.7
+      top_p: 0.8
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Factual recall + essay analysis, speed over depth"
+
+    # ── Family Agent ──────────────────────────────────────────────────────
+    family:
+      backend: desktop
+      model: "qwen3.5-9b-desktop"
+      context_length: 32768
+      thinking_mode: false
+      temperature: 0.7
+      top_p: 0.8
+      fallback_backend: gx10
+      fallback_model: "qwen3.5-7b"
+      reason: "Always-on local chat, low latency, context-compressed family awareness"
+
+    # ── Infrastructure Agents ─────────────────────────────────────────────
+    ops:
+      backend: gx10
+      model: "qwen3.5-3b"
+      context_length: 8192
+      thinking_mode: false
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Simple operational commands, health checks"
+
+    research:
+      backend: gx10
+      model: "qwen3.5-7b"
+      context_length: 32768
+      thinking_mode: false
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Paper summarization, learning Q&A"
+
+    # ── Learning Coach ────────────────────────────────────────────────────
+    learning-coach:
+      backend: gx10
+      model: "qwen3.5-32b"
+      context_length: 131072
+      thinking_mode: true
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "Multi-user learning coach needs deep reasoning + full RAG context"
+      per_user_override:
+        sameena: { model: "qwen3.5-7b", thinking_mode: false, context_length: 32768 }
+        rishaan: { model: "qwen3.5-7b", thinking_mode: false, context_length: 32768 }
+
+  # ── Embedding always routes to Jetson ─────────────────────────────────
+  embedding:
+    backend: jetson
+    model: "arctic-embed"
+
+  # ── Vision always routes to minillm ───────────────────────────────────
+  vision:
+    backend: minillm
+    model: "qwen3-vl-4b"

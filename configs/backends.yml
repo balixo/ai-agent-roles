@@ -8,19 +8,11 @@ backends:
     engine: vllm
     health_endpoint: "/v1/models"
     models:
-      - id: "Qwen/Qwen3.5-32B-Instruct-AWQ"
-        alias: "qwen3.5-32b"
+      - id: "Qwen/Qwen3-32B-AWQ"
+        alias: "qwen3-32b"
         purpose: "Heavy inference (coding, architecture, math/science tutoring)"
-        max_tokens: 131072
+        max_tokens: 40960
         supports_thinking: true
-      - id: "Qwen/Qwen3.5-7B-Instruct"
-        alias: "qwen3.5-7b"
-        purpose: "Fast inference (tutoring, SRE, agents, summarisation)"
-        max_tokens: 32768
-      - id: "Qwen/Qwen3.5-3B-Instruct"
-        alias: "qwen3.5-3b"
-        purpose: "Ultra-light inference (routing, classification, ops)"
-        max_tokens: 8192
 
   desktop:
     name: "Desktop (Local - Ollama)"

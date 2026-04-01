@@ -7,8 +7,8 @@
 # share weights in memory (PagedAttention). No external load balancer needed.
 #
 # ── Load Balancing Strategy ─────────────────────────────────────────────────
-# 1. vLLM internal: PagedAttention multiplexes concurrent requests per model
-# 2. Model-level: 32B/7B/3B loaded simultaneously (~66 GB of 128 GB)
+# 1. vLLM internal: PagedAttention multiplexes concurrent requests for 32B
+# 2. Single model: Qwen3-32B-AWQ uses full 128 GB unified memory (131K ctx)
 # 3. Node-level: Desktop Ollama serves as local fallback for interactive chat
 # 4. Overflow: If GX10 queue > threshold, route to minillm or desktop
 #
@@ -20,59 +20,59 @@
 
 routing:
   default_backend: gx10
-  default_model: "qwen3.5-7b"
+  default_model: "qwen3-32b"
 
   # ── Coding Agents ───────────────────────────────────────────────────────
   agents:
     dev:
       backend: gx10
-      model: "qwen3.5-32b"
-      context_length: 131072
+      model: "qwen3-32b"
+      context_length: 40960
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
       reason: "Feature implementation needs strong reasoning + full project context"
 
     jr-dev:
-      backend: gx10
-      model: "qwen3.5-7b"
-      context_length: 32768
+      backend: minillm
+      model: "qwen3.5-4b-ollama"
+      context_length: 4096
       thinking_mode: false
-      fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
       reason: "Simple bugs, docs, routine tasks — speed over depth"
 
     sr-dev:
       backend: gx10
-      model: "qwen3.5-32b"
-      context_length: 131072
+      model: "qwen3-32b"
+      context_length: 40960
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
       reason: "Code review and architecture guidance require depth + full codebase"
 
     sre:
-      backend: gx10
-      model: "qwen3.5-7b"
-      context_length: 32768
+      backend: minillm
+      model: "qwen3.5-4b-ollama"
+      context_length: 4096
       thinking_mode: false
-      fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
       reason: "Diagnostics need speed over depth"
 
     tester:
-      backend: gx10
-      model: "qwen3.5-7b"
-      context_length: 32768
+      backend: minillm
+      model: "qwen3.5-4b-ollama"
+      context_length: 4096
       thinking_mode: false
-      fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
-      reason: "Test generation is formulaic, 7B is sufficient"
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
+      reason: "Test generation is formulaic, 4B is sufficient"
 
     # ── Education Agents (from ai-tutor-prompts) ──────────────────────────
     math-teacher:
       backend: gx10
-      model: "qwen3.5-32b"
+      model: "qwen3-32b"
       context_length: 32768
       thinking_mode: true
       temperature: 0.6
@@ -83,29 +83,29 @@ routing:
 
     science-teacher:
       backend: gx10
-      model: "qwen3.5-32b"
+      model: "qwen3-32b"
       context_length: 32768
       thinking_mode: true
       temperature: 0.6
       top_p: 0.95
-      fallback_backend: gx10
-      fallback_model: "qwen3.5-7b"
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
       reason: "Physics/chemistry derivations need calculus-level reasoning"
 
     english-teacher:
-      backend: gx10
-      model: "qwen3.5-7b"
+      backend: desktop
+      model: "qwen3.5-9b-desktop"
       context_length: 32768
       thinking_mode: false
       temperature: 0.7
       top_p: 0.8
-      fallback_backend: desktop
-      fallback_model: "qwen3.5-9b-desktop"
-      reason: "Writing feedback is iterative, 7B has good writing quality"
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
+      reason: "Writing feedback is iterative, desktop 9B has good writing quality"
 
     chinese-teacher:
-      backend: gx10
-      model: "qwen3.5-7b"
+      backend: desktop
+      model: "qwen3.5-9b-desktop"
       context_length: 32768
       thinking_mode: false
       temperature: 0.7
@@ -115,8 +115,8 @@ routing:
       reason: "Qwen is natively strong in Chinese at all parameter sizes"
 
     history-teacher:
-      backend: gx10
-      model: "qwen3.5-7b"
+      backend: desktop
+      model: "qwen3.5-9b-desktop"
       context_length: 32768
       thinking_mode: false
       temperature: 0.7
@@ -133,23 +133,23 @@ routing:
       thinking_mode: false
       temperature: 0.7
       top_p: 0.8
-      fallback_backend: gx10
-      fallback_model: "qwen3.5-7b"
+      fallback_backend: minillm
+      fallback_model: "qwen3.5-4b-ollama"
       reason: "Always-on local chat, low latency, context-compressed family awareness"
 
     # ── Infrastructure Agents ─────────────────────────────────────────────
     ops:
-      backend: gx10
-      model: "qwen3.5-3b"
-      context_length: 8192
+      backend: minillm
+      model: "qwen3.5-4b-ollama"
+      context_length: 4096
       thinking_mode: false
-      fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_backend: desktop
+      fallback_model: "qwen3.5-9b-desktop"
       reason: "Simple operational commands, health checks"
 
     research:
-      backend: gx10
-      model: "qwen3.5-7b"
+      backend: desktop
+      model: "qwen3.5-9b-desktop"
       context_length: 32768
       thinking_mode: false
       fallback_backend: minillm
@@ -159,15 +159,15 @@ routing:
     # ── Learning Coach ────────────────────────────────────────────────────
     learning-coach:
       backend: gx10
-      model: "qwen3.5-32b"
-      context_length: 131072
+      model: "qwen3-32b"
+      context_length: 40960
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
       reason: "Multi-user learning coach needs deep reasoning + full RAG context"
       per_user_override:
-        sameena: { model: "qwen3.5-7b", thinking_mode: false, context_length: 32768 }
-        rishaan: { model: "qwen3.5-7b", thinking_mode: false, context_length: 32768 }
+        sameena: { model: "qwen3-32b", thinking_mode: false, context_length: 32768 }
+        rishaan: { model: "qwen3-32b", thinking_mode: false, context_length: 32768 }
 
   # ── Embedding always routes to Jetson ─────────────────────────────────
   embedding:

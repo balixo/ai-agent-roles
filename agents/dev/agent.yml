@@ -14,7 +14,7 @@ persona: |
 model:
   primary: "qwen3.5-32b"
   backend: gx10
-  context_length: 131072
+  context_length: 40960
   thinking_mode: true
   fallback: "qwen3.5-9b-desktop"
   fallback_backend: desktop

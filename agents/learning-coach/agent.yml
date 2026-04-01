@@ -104,16 +104,16 @@ persona: |
   - When queried, check RAG for previous session notes before answering
 
 model:
-  primary: "qwen3.5-32b"
+  primary: "qwen3-32b"
   backend: gx10
-  context_length: 131072
+  context_length: 40960
   thinking_mode: true
   fallback: "qwen3.5-9b-desktop"
   fallback_backend: desktop
-  # For Sameena/Rishaan, prefer 7B for speed; 32B only if complex question
+  # Single 32B model on GX10 — all users share it (no 7B available)
   per_user_override:
-    sameena: { model: "qwen3.5-7b", thinking_mode: false }
-    rishaan: { model: "qwen3.5-7b", thinking_mode: false }
+    sameena: { model: "qwen3-32b", thinking_mode: false }
+    rishaan: { model: "qwen3-32b", thinking_mode: false }
 
 tools:
   - http

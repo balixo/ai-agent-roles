@@ -2,6 +2,7 @@
 
 role: research
 name: ResearchBot
+alias: Swordfish
 description: "AI research agent for paper summarization, learning assistance, and knowledge base management."
 
 persona: |

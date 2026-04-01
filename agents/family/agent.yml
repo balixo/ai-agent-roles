@@ -2,6 +2,7 @@
 
 role: family
 name: FamilyBot
+alias: Clownfish
 description: "Family-aware chat agent with context compression for responsive, context-rich conversations."
 
 persona: |

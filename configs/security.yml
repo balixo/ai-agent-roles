@@ -1,0 +1,384 @@
+# Agent Security Policy — Blast Radius & Access Controls
+#
+# This file defines the security boundaries for each agent.
+# OpenClaw gateway reads this at startup to enforce tool restrictions.
+# The validate_agents.py script cross-checks agent.yml tools against these policies.
+#
+# Principle: least-privilege per agent. Every agent gets ONLY the access it needs.
+# Defence-in-depth: persona instructions + tool restrictions + RBAC + NetworkPolicy + audit.
+
+# ── Global Defaults ─────────────────────────────────────────────────────────
+defaults:
+  # Shell commands denied for ALL agents — overridable per-agent only to REMOVE items
+  shell_deny:
+    # Destructive filesystem ops
+    - "rm -rf /"
+    - "rm -rf /*"
+    - "mkfs"
+    - "dd if="
+    - "shred"
+    # K8s cluster-admin operations (agents use k8s-api tool, not kubectl)
+    - "kubectl delete namespace"
+    - "kubectl delete node"
+    - "kubectl drain"
+    - "kubectl cordon"
+    - "kubectl taint"
+    - "kubectl apply -f -"          # no piped YAML — use git commits
+    - "kubectl edit"
+    - "kubectl scale"               # no direct scaling — git → ArgoCD
+    - "kubectl set image"
+    - "kubectl patch"
+    - "kubectl create secret"
+    - "kubectl create clusterrole"
+    - "kubectl create clusterrolebinding"
+    - "kubectl create serviceaccount"
+    - "kubectl exec"                # no exec into other pods
+    - "kubectl cp"                  # no file copy to/from other pods
+    - "kubectl port-forward"        # no tunnels
+    - "kubectl proxy"
+    - "kubectl auth can-i"          # no RBAC probing
+    # Package management (agents shouldn't install arbitrary software)
+    - "apt install"
+    - "apt-get install"
+    - "pip install"
+    - "npm install -g"
+    - "curl | sh"
+    - "curl | bash"
+    - "wget -O - | sh"
+    # Secret exfiltration prevention
+    - "printenv"                    # don't dump all env vars
+    - "env | "                      # don't pipe env vars
+    - "cat /var/run/secrets"        # don't read SA tokens directly
+    - "cat /proc/*/environ"
+    # Network abuse
+    - "nc -l"                       # no listening sockets
+    - "ncat"
+    - "socat"
+    - "ssh "                        # no SSH from agent pods (except SRE to TrueNAS)
+    # Crypto mining / abuse
+    - "xmrig"
+    - "minerd"
+    - "cpuminer"
+  # Max command execution time (seconds) — kill after this
+  shell_timeout: 120
+  # Max output size (bytes) — truncate after this
+  shell_max_output: 65536
+  # Audit: log every shell command to stdout (captured by Loki)
+  audit_shell_commands: true
+  # Audit: log every HTTP request to stdout
+  audit_http_requests: true
+
+# ── Per-Agent Security Policies ─────────────────────────────────────────────
+agents:
+  dev:
+    alias: Barracuda
+    gitea_user: barracuda-bot
+    tools_allowed: [shell, git, http]
+    shell_allow:
+      - "git *"
+      - "cat *"
+      - "ls *"
+      - "find *"
+      - "grep *"
+      - "head *"
+      - "tail *"
+      - "wc *"
+      - "diff *"
+      - "mkdir *"
+      - "cp *"
+      - "mv *"
+      - "echo *"
+      - "sed *"
+      - "awk *"
+      - "jq *"
+      - "yq *"
+    http_allow:
+      - "https://git.balikai.org/*"     # Gitea API
+    http_deny:
+      - "http://vault.*"               # no direct Vault access
+      - "http://prometheus-*"           # no metrics scraping
+      - "http://grafana.*"              # no dashboard access
+    secrets_access: [BARRACUDA_GITEA_TOKEN, TELEGRAM_BOT_TOKEN]
+    k8s_access: none                    # no k8s API at all
+    namespace_scope: []                 # not applicable — no k8s
+    max_file_write_mb: 50              # limit PVC writes
+    can_push_to_main: false            # feature branches only via Gitea API
+    can_merge_pr: false
+
+  sr-dev:
+    alias: Shark
+    gitea_user: shark-bot
+    tools_allowed: [shell, git, http]   # code review needs repo access
+    shell_allow:
+      - "git *"
+      - "cat *"
+      - "ls *"
+      - "grep *"
+      - "head *"
+      - "tail *"
+      - "diff *"
+      - "wc *"
+      - "jq *"
+    http_allow:
+      - "https://git.balikai.org/*"     # Gitea API
+    http_deny:
+      - "http://vault.*"
+      - "http://prometheus-*"
+    secrets_access: [SHARK_GITEA_TOKEN, TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+    can_push_to_main: false
+    can_merge_pr: true                  # only after human "merge" confirmation
+
+  jr-dev:
+    alias: Guppy
+    gitea_user: guppy-bot
+    tools_allowed: [shell, git, http]
+    shell_allow:
+      - "git *"
+      - "cat *"
+      - "ls *"
+      - "grep *"
+      - "mkdir *"
+      - "echo *"
+    http_allow:
+      - "https://git.balikai.org/*"     # Gitea API
+    secrets_access: [GUPPY_GITEA_TOKEN, TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+    max_file_write_mb: 20
+    can_push_to_main: false
+    can_merge_pr: false
+
+  sre:
+    alias: Piranha
+    gitea_user: piranha-bot
+    tools_allowed: [shell, k8s-api, http, ansible, git]
+    shell_allow:
+      - "curl -sk *kubernetes.default.svc*"  # k8s API via SA token
+      - "curl *grafana*"                      # Prometheus/Loki queries via Grafana
+      - "curl *gatus*"                        # uptime checks
+      - "cat *"
+      - "ls *"
+      - "grep *"
+      - "jq *"
+      - "yq *"
+      - "docker ps"                           # TrueNAS container check (via SSH)
+      - "docker restart"                      # TrueNAS container recovery
+      - "git clone *"                         # clone repos for upgrade PRs
+      - "git checkout *"                      # create upgrade branches
+      - "git add *"                           # stage version bumps
+      - "git commit *"                        # commit version changes
+      - "git push *"                          # push upgrade branches
+      - "git diff *"                          # review changes before commit
+      - "python scripts/check_versions.py *"  # run version checker
+      - "python scripts/validate_agents.py"   # validate after changes
+      - "helm template *"                     # validate Helm charts
+      - "sed *"                               # patch version strings in files
+    shell_allow_extra:
+      - "ssh gangadhar@192.168.68.72 *"       # TrueNAS SSH only — specific host
+    http_allow:
+      - "https://kubernetes.default.svc/*"
+      - "http://grafana.monitoring.svc*"
+      - "http://prometheus-operated.monitoring.svc*"
+      - "http://192.168.68.87:8080/*"         # Gatus
+      - "https://semaphore.balikai.org/*"     # Semaphore API
+      - "https://argocd.lab/*"                # ArgoCD status
+      - "http://192.168.68.92:8000/*"         # GX10 health
+      - "http://192.168.68.57:11434/*"        # minillm health
+      - "http://192.168.68.81:11434/*"        # Jetson health
+      # Version monitoring — upstream registries
+      - "https://helm.cilium.io/*"            # Cilium Helm index
+      - "https://charts.longhorn.io/*"        # Longhorn Helm index
+      - "https://charts.jetstack.io/*"        # cert-manager Helm index
+      - "https://charts.external-secrets.io/*"  # ESO Helm index
+      - "https://helm.releases.hashicorp.com/*" # Vault Helm index
+      - "https://semaphoreui.github.io/*"     # Semaphore Helm index
+      - "https://prometheus-community.github.io/*"  # Prometheus Helm index
+      - "https://grafana.github.io/*"         # Grafana/Loki Helm index
+      - "https://registry-1.docker.io/*"      # Docker Hub registry API
+      - "https://auth.docker.io/*"            # Docker Hub auth tokens
+      - "https://ghcr.io/*"                   # GitHub Container Registry
+      - "https://api.github.com/repos/*/releases"  # GitHub Releases API (changelogs)
+      # Gitea — for creating upgrade PRs
+      - "https://git.balikai.org/api/v1/*"    # Gitea API (repos, branches, PRs)
+    http_deny:
+      - "http://vault.*"                      # no Vault access
+      - "https://git.balikai.org/*/merge"     # no merge via API — only human merges
+    secrets_access: [PIRANHA_GITEA_TOKEN, TELEGRAM_BOT_TOKEN]
+    k8s_access: scoped                         # via openclaw-sre ServiceAccount
+    k8s_verbs_allowed:
+      # Read everything
+      core_read: [get, list, watch]
+      # Recovery actions (BAU — limited write)
+      pods: [get, list, watch, delete]         # delete stuck/crashed pods
+      deployments: [get, list, watch, patch]   # rollout restart (patch annotation)
+      pvcs: [get, list, watch, delete]         # clear stuck PVCs
+      longhorn_volumes: [get, list, watch, patch]  # detach/reattach
+    k8s_verbs_denied:
+      - "create namespace"
+      - "delete namespace"
+      - "create|delete|patch clusterrole"
+      - "create|delete|patch clusterrolebinding"
+      - "create|delete|patch serviceaccount"
+      - "create|delete secret"
+      - "delete node"
+      - "delete persistentvolume"              # PVs are different from PVCs
+    namespace_scope: ["*"]                     # cluster-wide read, scoped write
+    max_recovery_retries: 2                    # escalate to human after 2 failures
+
+  tester:
+    alias: Pufferfish
+    gitea_user: pufferfish-bot
+    tools_allowed: [shell, git, http]
+    shell_allow:
+      - "git *"
+      - "cat *"
+      - "ls *"
+      - "grep *"
+      - "diff *"
+      - "jq *"
+    http_allow:
+      - "https://git.balikai.org/*"            # Gitea API (read + comment)
+      - "https://semaphore.balikai.org/*"      # trigger CI
+    http_deny:
+      - "https://git.balikai.org/*/merge"      # cannot merge PRs
+      - "http://vault.*"
+    secrets_access: [PUFFERFISH_GITEA_TOKEN, SEMAPHORE_TOKEN, TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+    can_push_to_main: false
+    can_merge_pr: false                        # review only, no merge
+
+  ops:
+    tools_allowed: [shell, ansible, http]
+    shell_allow:
+      - "ansible-playbook *"
+      - "ansible *"
+      - "cat *"
+      - "ls *"
+      - "grep *"
+      - "systemctl status *"
+    http_allow:
+      - "https://semaphore.balikai.org/*"
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+    can_push_to_main: false
+    can_merge_pr: false
+
+  research:
+    tools_allowed: [http, rag]
+    shell_allow: []                            # no shell
+    http_allow:
+      - "http://qdrant.*"                      # RAG queries
+      - "http://192.168.68.81:11434/*"         # embeddings
+    http_deny:
+      - "http://vault.*"
+      - "https://git.balikai.org/*"            # no git access
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+
+  family:
+    tools_allowed: [http, rag]
+    shell_allow: []
+    http_allow:
+      - "http://qdrant.*"
+    http_deny:
+      - "http://vault.*"
+      - "https://git.balikai.org/*"
+      - "http://prometheus-*"
+      - "https://kubernetes.default.svc/*"
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+    namespace_scope: []
+
+  # Teacher agents — minimal access
+  math-teacher:
+    tools_allowed: [http]
+    shell_allow: []
+    http_allow: []
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+  science-teacher:
+    tools_allowed: [http]
+    shell_allow: []
+    http_allow: []
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+  english-teacher:
+    tools_allowed: [http]
+    shell_allow: []
+    http_allow: []
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+  chinese-teacher:
+    tools_allowed: [http]
+    shell_allow: []
+    http_allow: []
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+  history-teacher:
+    tools_allowed: [http]
+    shell_allow: []
+    http_allow: []
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+  learning-coach:
+    tools_allowed: [http, rag]
+    shell_allow: []
+    http_allow:
+      - "http://qdrant.*"
+      - "http://192.168.68.81:11434/*"         # embeddings
+    http_deny:
+      - "http://vault.*"
+      - "https://git.balikai.org/*"
+    secrets_access: [TELEGRAM_BOT_TOKEN]
+    k8s_access: none
+
+# ── Prompt Injection Defences ───────────────────────────────────────────────
+prompt_injection:
+  # Strip these patterns from user input before passing to LLM
+  sanitize_patterns:
+    - "ignore previous instructions"
+    - "you are now"
+    - "system prompt"
+    - "forget your instructions"
+    - "act as root"
+    - "sudo"
+  # Max user message length (chars) — truncate longer messages
+  max_input_length: 16384
+  # If LLM output contains these, block execution and alert
+  output_canary_patterns:
+    - "cat /var/run/secrets"
+    - "KUBE_TOKEN"
+    - "kubectl create clusterrolebinding"
+    - "kubectl auth can-i"
+    - "printenv"
+    - "curl.*-d.*token"
+
+# ── Audit & Monitoring ──────────────────────────────────────────────────────
+audit:
+  # All agent actions logged to stdout → Loki
+  log_format: json
+  log_fields: [timestamp, agent, tool, command, target, result, duration_ms]
+  # Alert on suspicious patterns (Loki → Grafana alert rule)
+  alert_patterns:
+    - pattern: "shell_deny_blocked"
+      severity: critical
+      notify: telegram
+    - pattern: "http_deny_blocked"
+      severity: warning
+      notify: telegram
+    - pattern: "prompt_injection_detected"
+      severity: critical
+      notify: telegram
+    - pattern: "max_recovery_retries_exceeded"
+      severity: warning
+      notify: telegram

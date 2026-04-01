@@ -2,6 +2,7 @@
 
 role: dev
 name: DevBot
+alias: Barracuda
 description: "AI developer agent that implements features, creates branches, writes code, and opens pull requests."
 
 persona: |
@@ -31,10 +32,19 @@ capabilities:
   - Open pull requests via Gitea API
   - Respond to PR review comments
 
+git_identity:
+  name: Barracuda
+  email: barracuda@balikai.org
+  gitea_user: barracuda-bot
+  token_secret: "openclaw-agent-tokens"
+  token_key: "barracuda-gitea-token"
+
 integrations:
   gitea:
     api_url: "https://git.balikai.org/api/v1"
-    token_secret: "openclaw-gitea"
+    user: barracuda-bot
+    token_secret: "openclaw-agent-tokens"
+    token_key: "barracuda-gitea-token"
   telegram:
     token_secret: "openclaw-agent-tokens"
     token_key: "dev-bot-token"

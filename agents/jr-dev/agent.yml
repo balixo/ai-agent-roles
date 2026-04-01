@@ -2,6 +2,7 @@
 
 role: jr-dev
 name: JrDevBot
+alias: Guppy
 description: "AI junior developer agent for simple bug fixes, routine tasks, documentation, and small code changes."
 
 persona: |
@@ -32,10 +33,19 @@ capabilities:
   - Create PRs for routine maintenance tasks
   - Respond to simple PR review comments
 
+git_identity:
+  name: Guppy
+  email: guppy@balikai.org
+  gitea_user: guppy-bot
+  token_secret: "openclaw-agent-tokens"
+  token_key: "guppy-gitea-token"
+
 integrations:
   gitea:
     api_url: "https://git.balikai.org/api/v1"
-    token_secret: "openclaw-gitea"
+    user: guppy-bot
+    token_secret: "openclaw-agent-tokens"
+    token_key: "guppy-gitea-token"
   telegram:
     token_secret: "openclaw-agent-tokens"
     token_key: "jr-dev-bot-token"

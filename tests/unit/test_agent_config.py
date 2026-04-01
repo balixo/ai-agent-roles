@@ -97,7 +97,7 @@ class TestValidateAgentFunction:
             "name": "TestBot",
             "description": "Test agent",
             "persona": "You are a test bot.",
-            "model": {"primary": "qwen3.5-7b", "backend": "gx10"},
+            "model": {"primary": "qwen3-next-80b-a3b", "backend": "gx10"},
             "tools": ["shell", "git"],
         }))
         errors = validate_agent(agent_file)

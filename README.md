@@ -9,50 +9,60 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │                      AI Inference Tier                            │
 │                                                                   │
-│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐  │
-│  │ GX10 (.92)  │   │ minillm (.57)│   │ Jetson (.81)          │  │
-│  │ vLLM        │   │ Ollama       │   │ Ollama                │  │
-│  │             │   │              │   │                       │  │
-│  │ Qwen3.5-32B │   │ qwen3.5:4b   │   │ snowflake-arctic-     │  │
-│  │ Qwen3.5-7B  │   │ qwen3-vl:4b  │   │ embed2                │  │
-│  │ Qwen3.5-3B  │   │              │   │                       │  │
-│  └──────┬──────┘   └──────┬───────┘   └───────────┬───────────┘  │
-│         │                 │                       │              │
-│    Primary           Secondary              Embeddings           │
-│    (heavy tasks)     (fast text/vision)      (RAG ingest)        │
-└─────────┴─────────────────┴───────────────────────┴──────────────┘
-                            │
-                    ┌───────▼───────┐
-                    │  Agent Router │
-                    │  (gateway)    │
-                    └───────┬───────┘
-                            │
-        ┌───────┬───────┬───┴───┬─────────┬──────────┐
-        │       │       │       │         │          │
-     ┌──▼──┐┌──▼──┐┌───▼──┐┌──▼───┐┌────▼───┐┌────▼────┐
-     │ Dev ││ SRE ││Tester││Sr-Dev││Research││  Ops    │
-     │ Bot ││ Bot ││ Bot  ││ Bot  ││  Bot   ││  Bot    │
-     └─────┘└─────┘└──────┘└──────┘└────────┘└─────────┘
+│  ┌──────────────────┐ ┌──────────────┐ ┌───────────────────────┐ │
+│  │ GX10 (.92)       │ │ minillm (.57)│ │ Jetson (.81)          │ │
+│  │ vLLM             │ │ Ollama       │ │ Ollama                │ │
+│  │                  │ │              │ │                       │ │
+│  │ Qwen3-Next-80B   │ │ qwen3.5:4b   │ │ snowflake-arctic-     │ │
+│  │ (MoE 3B active)  │ │ qwen3-vl:4b  │ │ embed2                │ │
+│  │ NVFP4, 65K ctx   │ │              │ │                       │ │
+│  └────────┬─────────┘ └──────┬───────┘ └───────────┬───────────┘ │
+│           │                  │                     │             │
+│      Primary            Secondary             Embeddings         │
+│      (heavy tasks)      (fast text/vision)    (RAG ingest)       │
+└───────────┴──────────────────┴─────────────────────┴─────────────┘
+                               │
+                       ┌───────▼───────┐
+                       │  Agent Router │
+                       │  (gateway)    │
+                       └───────┬───────┘
+                               │
+    ┌──────┬──────┬──────┬─────┴─────┬─────────┬──────────┐
+    │      │      │      │           │         │          │
+ ┌──▼──┐┌──▼──┐┌─▼───┐┌─▼────┐┌────▼───┐┌────▼────┐┌────▼─────┐
+ │ Dev ││ SRE ││Test ││Sr-Dev││Research││  Ops    ││ Teachers │
+ │ Bot ││ Bot ││ Bot ││ Bot  ││  Bot   ││  Bot    ││ + Family │
+ └─────┘└─────┘└─────┘└──────┘└────────┘└─────────┘└──────────┘
 ```
 
 ## Agent Roles
 
-| Agent | Purpose | Model | Tools |
-|-------|---------|-------|-------|
-| **DevBot** | Feature implementation, branch/PR creation | Qwen3.5-32B (GX10) | shell, git, http |
-| **SREBot** | Infrastructure monitoring, incident diagnosis | Qwen3.5-7B (GX10) | k8s-api, shell |
-| **TesterBot** | PR review, CI triggering, test execution | Qwen3.5-7B (GX10) | git, ci-api |
-| **SrDevBot** | Code review, PR approval, architecture guidance | Qwen3.5-32B (GX10) | git, http |
-| **ResearchBot** | Learning companion, paper summarization | Qwen3.5-7B (GX10) | http, rag |
-| **OpsBot** | Ansible playbook execution, node health | Qwen3.5-3B (GX10) | shell, ansible |
+| Agent | Purpose | Primary Model | Backend | Tools |
+|-------|---------|---------------|---------|-------|
+| **DevBot** | Feature implementation, branch/PR creation | Qwen3-Next-80B | GX10 | shell, git, http |
+| **SrDevBot** | Code review, PR approval, architecture guidance | Qwen3-Next-80B | GX10 | git, http |
+| **SREBot** | Infrastructure monitoring, auto-recovery | qwen3.5:4b | minillm | k8s-api, shell, prometheus, loki |
+| **TesterBot** | PR review, CI triggering, test execution | qwen3.5:4b | minillm | git, ci-api |
+| **ResearchBot** | Learning companion, paper summarization | Qwen3-Next-80B | GX10 | http, rag |
+| **OpsBot** | Ansible playbook execution, node health | qwen3.5:4b | minillm | shell, ansible |
+| **JrDevBot** | Simple tasks, scaffolding, boilerplate | qwen3.5:4b | minillm | shell, git |
+| **FamilyBot** | Family assistant, scheduling, reminders | qwen3.5:4b | minillm | http |
+| **LearningCoach** | Multi-user learning & progress tracking | Qwen3-Next-80B | GX10 | http, rag |
+| **MathTeacher** | Mathematics tutoring (Rishaan) | Qwen3-Next-80B | GX10 | http |
+| **ScienceTeacher** | Science tutoring (Rishaan) | Qwen3-Next-80B | GX10 | http |
+| **EnglishTeacher** | English tutoring (Rishaan) | Qwen3-Next-80B | GX10 | http |
+| **ChineseTeacher** | Chinese tutoring (Rishaan) | Qwen3-Next-80B | GX10 | http |
+| **HistoryTeacher** | History tutoring (Rishaan) | Qwen3-Next-80B | GX10 | http |
 
 ## Inference Backends
 
-| Backend | URL | Engine | Models |
-|---------|-----|--------|--------|
-| **GX10** | `http://192.168.68.92:8000/v1` | vLLM | Qwen3.5-32B, 7B, 3B |
-| **minillm** | `http://192.168.68.57:11434/v1` | Ollama | qwen3.5:4b, qwen3-vl:4b |
-| **Jetson** | `http://192.168.68.81:11434/v1` | Ollama | snowflake-arctic-embed2 |
+| Backend | URL | Engine | Model | Purpose |
+|---------|-----|--------|-------|---------|
+| **GX10** | `http://192.168.68.92:8000/v1` | vLLM | nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4 | Primary inference (MoE 80B, 3B active) |
+| **minillm** | `http://192.168.68.57:11434/v1` | Ollama | qwen3.5:4b, qwen3-vl:4b | Fast text + vision |
+| **Jetson** | `http://192.168.68.81:11434/v1` | Ollama | snowflake-arctic-embed2 | Embeddings (RAG ingest) |
+
+> **Note:** Desktop Ollama (localhost:11434) is for Gangadhar's personal interactive use only — never used by autonomous agents.
 
 ## Project Structure
 
@@ -61,11 +71,19 @@ ai-agent-roles/
 ├── README.md              # This file
 ├── agents/                # Agent persona definitions
 │   ├── dev/               # Developer agent
-│   ├── sre/               # SRE agent
-│   ├── tester/            # Tester agent
 │   ├── sr-dev/            # Senior developer agent
+│   ├── jr-dev/            # Junior developer agent
+│   ├── sre/               # SRE agent (auto-recovery + monitoring)
+│   ├── tester/            # Tester agent
 │   ├── research/          # Research/learning agent
-│   └── ops/               # Operations agent
+│   ├── ops/               # Operations agent
+│   ├── family/            # Family assistant agent
+│   ├── learning-coach/    # Multi-user learning coach
+│   ├── math-teacher/      # Mathematics tutor
+│   ├── science-teacher/   # Science tutor
+│   ├── english-teacher/   # English tutor
+│   ├── chinese-teacher/   # Chinese tutor
+│   └── history-teacher/   # History tutor
 ├── configs/               # Shared configuration
 │   ├── backends.yml       # Inference backend definitions
 │   └── routing.yml        # Model routing rules

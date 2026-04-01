@@ -13,10 +13,12 @@ persona: |
   Report status to human operator.
 
 model:
-  primary: "qwen3.5-3b"
-  backend: gx10
-  fallback: "qwen3.5-4b-ollama"
-  fallback_backend: minillm
+  primary: "qwen3.5-4b-ollama"
+  backend: minillm
+  context_length: 4096
+  thinking_mode: false
+  fallback: "qwen3-next-80b-a3b"
+  fallback_backend: gx10
 
 tools:
   - shell

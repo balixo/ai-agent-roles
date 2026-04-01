@@ -13,12 +13,12 @@ persona: |
   Respect GitOps — never apply changes directly.
 
 model:
-  primary: "qwen3.5-7b"
-  backend: gx10
-  context_length: 32768
+  primary: "qwen3.5-4b-ollama"
+  backend: minillm
+  context_length: 4096
   thinking_mode: false
-  fallback: "qwen3.5-4b-ollama"
-  fallback_backend: minillm
+  fallback: "qwen3-next-80b-a3b"
+  fallback_backend: gx10
 
 tools:
   - shell

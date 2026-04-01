@@ -8,11 +8,14 @@ backends:
     engine: vllm
     health_endpoint: "/v1/models"
     models:
-      - id: "Qwen/Qwen3.5-122B-A10B-GPTQ-Int4"
-        alias: "qwen3.5-122b-a10b"
-        purpose: "Heavy inference (coding, architecture, math/science tutoring)"
-        max_tokens: 262144
+      - id: "nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4"
+        alias: "qwen3-next-80b-a3b"
+        purpose: "Primary inference — all heavy tasks (coding, architecture, math/science tutoring)"
+        max_tokens: 65536
         supports_thinking: true
+        quantization: "NVFP4"
+        architecture: "MoE 80B (512 experts top-10, 3B active/token, hybrid Mamba+Attention)"
+        speed: "~42 tok/s (Marlin), ~67 tok/s (MTP)"
 
   desktop:
     name: "Desktop (Local - Ollama)"

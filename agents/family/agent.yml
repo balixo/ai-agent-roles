@@ -14,10 +14,11 @@ persona: |
   Never share one family member's private conversations with another.
 
 model:
-  primary: "qwen3.5-9b-desktop"
-  backend: desktop
+  primary: "qwen3.5-4b-ollama"
+  backend: minillm
+  context_length: 4096
   thinking_mode: false
-  fallback: "qwen3.5-7b"
+  fallback: "qwen3-next-80b-a3b"
   fallback_backend: gx10
 
 tools:

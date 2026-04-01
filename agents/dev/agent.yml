@@ -12,12 +12,12 @@ persona: |
   Write tests for all new code. Keep PRs focused and small.
 
 model:
-  primary: "qwen3.5-122b-a10b"
+  primary: "qwen3-next-80b-a3b"
   backend: gx10
-  context_length: 262144
+  context_length: 65536
   thinking_mode: true
-  fallback: "qwen3.5-9b-desktop"
-  fallback_backend: desktop
+  fallback: "qwen3.5-4b-ollama"
+  fallback_backend: minillm
 
 tools:
   - shell

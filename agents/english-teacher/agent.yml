@@ -14,11 +14,12 @@ persona: |
   Assign reading from diverse voices: global literature, journalism, speeches.
 
 model:
-  primary: "qwen3.5-7b"
+  primary: "qwen3-next-80b-a3b"
   backend: gx10
+  context_length: 32768
   thinking_mode: false
-  fallback: "qwen3.5-9b-desktop"
-  fallback_backend: desktop
+  fallback: "qwen3.5-4b-ollama"
+  fallback_backend: minillm
 
 tools:
   - http

@@ -9,7 +9,7 @@ import yaml
 
 REQUIRED_FIELDS = ["role", "name", "description", "persona", "model", "tools"]
 MODEL_FIELDS = ["primary", "backend"]
-VALID_BACKENDS = {"gx10", "minillm", "jetson", "desktop"}
+VALID_BACKENDS = {"gx10", "minillm", "jetson"}
 VALID_TOOLS = {"shell", "git", "http", "k8s-api", "rag", "ci-api", "ansible"}
 
 

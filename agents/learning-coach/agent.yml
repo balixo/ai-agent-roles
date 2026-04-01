@@ -20,7 +20,7 @@ users:
     profile: "learning-roadmap/profiles/gangadhar.yml"
     tracks_path: "learning-roadmap/gangadhar/"
     coaching_tone: direct, technical, accountability-focused
-    model_preference: "qwen3.5-32b"  # thinking mode for deep technical
+    model_preference: "qwen3.5-122b-a10b"  # thinking mode for deep technical
     thinking_mode: true
 
   sameena:

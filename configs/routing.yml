@@ -7,8 +7,8 @@
 # share weights in memory (PagedAttention). No external load balancer needed.
 #
 # ── Load Balancing Strategy ─────────────────────────────────────────────────
-# 1. vLLM internal: PagedAttention multiplexes concurrent requests for 32B
-# 2. Single model: Qwen3-32B-AWQ uses full 128 GB unified memory (131K ctx)
+# 1. vLLM internal: PagedAttention multiplexes concurrent requests for 122B MoE
+# 2. Single model: Qwen3.5-122B-A10B-GPTQ-Int4 uses full 128 GB unified memory (262K ctx)
 # 3. Node-level: Desktop Ollama serves as local fallback for interactive chat
 # 4. Overflow: If GX10 queue > threshold, route to minillm or desktop
 #
@@ -20,14 +20,14 @@
 
 routing:
   default_backend: gx10
-  default_model: "qwen3-32b"
+  default_model: "qwen3.5-122b-a10b"
 
   # ── Coding Agents ───────────────────────────────────────────────────────
   agents:
     dev:
       backend: gx10
-      model: "qwen3-32b"
-      context_length: 40960
+      model: "qwen3.5-122b-a10b"
+      context_length: 262144
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
@@ -44,8 +44,8 @@ routing:
 
     sr-dev:
       backend: gx10
-      model: "qwen3-32b"
-      context_length: 40960
+      model: "qwen3.5-122b-a10b"
+      context_length: 262144
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
@@ -72,7 +72,7 @@ routing:
     # ── Education Agents (from ai-tutor-prompts) ──────────────────────────
     math-teacher:
       backend: gx10
-      model: "qwen3-32b"
+      model: "qwen3.5-122b-a10b"
       context_length: 32768
       thinking_mode: true
       temperature: 0.6
@@ -83,7 +83,7 @@ routing:
 
     science-teacher:
       backend: gx10
-      model: "qwen3-32b"
+      model: "qwen3.5-122b-a10b"
       context_length: 32768
       thinking_mode: true
       temperature: 0.6
@@ -159,15 +159,15 @@ routing:
     # ── Learning Coach ────────────────────────────────────────────────────
     learning-coach:
       backend: gx10
-      model: "qwen3-32b"
-      context_length: 40960
+      model: "qwen3.5-122b-a10b"
+      context_length: 262144
       thinking_mode: true
       fallback_backend: desktop
       fallback_model: "qwen3.5-9b-desktop"
       reason: "Multi-user learning coach needs deep reasoning + full RAG context"
       per_user_override:
-        sameena: { model: "qwen3-32b", thinking_mode: false, context_length: 32768 }
-        rishaan: { model: "qwen3-32b", thinking_mode: false, context_length: 32768 }
+        sameena: { model: "qwen3.5-122b-a10b", thinking_mode: false, context_length: 32768 }
+        rishaan: { model: "qwen3.5-122b-a10b", thinking_mode: false, context_length: 32768 }
 
   # ── Embedding always routes to Jetson ─────────────────────────────────
   embedding:

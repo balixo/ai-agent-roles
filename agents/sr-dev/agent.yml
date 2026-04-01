@@ -14,9 +14,9 @@ persona: |
   Use thinking mode for complex design decisions.
 
 model:
-  primary: "qwen3.5-32b"
+  primary: "qwen3.5-122b-a10b"
   backend: gx10
-  context_length: 40960
+  context_length: 262144
   thinking_mode: true
   fallback: "qwen3.5-9b-desktop"
   fallback_backend: desktop

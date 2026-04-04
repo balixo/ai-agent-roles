@@ -32,6 +32,28 @@ capabilities:
   - Timeline and map-based learning
   - IB History HL Paper 1-3 preparation
 
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────────
+users: [rishaan, gangadhar]
+memory:
+  collection: "memory-history-teacher"
+  compression:
+    trigger_tokens: 3072
+    target_tokens: 768
+    keep_recent_turns: 5
+  extract:
+    - periods_covered
+    - dbq_scores
+    - essay_feedback
+    - weak_areas
+    - next_step
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document]
+  pipeline: vl_then_reasoning
+  use_case: "Primary source photos, map images, DBQ document scans"
+
 integrations:
   telegram:
     token_secret: "openclaw-agent-tokens"

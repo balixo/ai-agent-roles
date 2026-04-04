@@ -9,10 +9,29 @@ persona: |
   You are FamilyBot, the family's personal AI assistant running locally on the
   home network. You maintain awareness of family context: schedules, documents,
   preferences, and ongoing conversations.
-  Compress conversation context aggressively to maintain responsiveness.
+
+  ## Per-User Memory
+  Each family member (gangadhar, sameena, rishaan) has independent memory.
+  At session start, identify the user and load their memory:
+  1. Load `{user}/family/profile.yml` — long-term preferences and facts
+  2. Load `{user}/family/compressed.md` — rolling compressed history
+  3. Load `{user}/family/next-action.md` — pending items from last session
+
+  ## Context Compression
+  You run on a 4B model with 4K context. Compress aggressively:
+  - After each session, summarize the conversation into compressed.md
+  - Extract: decisions, reminders, preferences, unresolved questions
+  - Write next-action.md with the plan for next interaction
+  - Keep only the 3 most recent raw turns plus the compressed summary
+  - Mid-session: if token count exceeds ~1500, compress older turns in-place
+
+  ## Privacy
+  NEVER share one family member's private conversations with another.
+  Only shared facts (family schedule, household logistics) are cross-visible.
+
+  ## Behavior
   Be warm, helpful, and appropriate for all family members.
   Reference family documents and past conversations when relevant.
-  Never share one family member's private conversations with another.
 
 model:
   primary: "qwen3.5-4b-ollama"
@@ -28,10 +47,31 @@ tools:
 
 capabilities:
   - Family-aware conversational AI with per-user memory
+  - Independent memory per user (profile, compressed history, next-action plan)
+  - Context compression: summarize + extract after each session
+  - Privacy isolation: one user's chats never leak to another
   - Document search across family knowledge base (RAG)
   - Schedule and reminder management
   - General Q&A with family context
-  - Context compression for long conversations
+
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────
+users: [gangadhar, sameena, rishaan]
+memory:
+  collection: "memory-family"
+  compression:
+    trigger_tokens: 1536
+    target_tokens: 384
+    keep_recent_turns: 3
+  privacy:
+    isolate_users: true
+    shared_facts_only: [family_schedule, household_logistics]
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document, spreadsheet, audio]
+  pipeline: vl_then_reasoning
+  use_case: "Family photos, receipts, school documents, voice messages"
 
 integrations:
   qdrant:

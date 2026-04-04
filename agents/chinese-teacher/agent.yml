@@ -32,6 +32,28 @@ capabilities:
   - Writing exercises (sentence → paragraph → essay)
   - HSK level assessments
 
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────────
+users: [rishaan, gangadhar, sameena]
+memory:
+  collection: "memory-chinese-teacher"
+  compression:
+    trigger_tokens: 3072
+    target_tokens: 768
+    keep_recent_turns: 5
+  extract:
+    - hsk_level
+    - characters_learned
+    - grammar_patterns
+    - weak_areas
+    - next_step
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document, audio]
+  pipeline: vl_then_reasoning
+  use_case: "Character writing photos, textbook pages, pronunciation audio"
+
 integrations:
   telegram:
     token_secret: "openclaw-agent-tokens"

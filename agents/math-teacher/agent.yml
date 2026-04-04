@@ -32,6 +32,28 @@ capabilities:
   - Track accuracy rate and adapt difficulty
   - Weekly diagnostic assessments
 
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────────
+users: [rishaan, gangadhar]
+memory:
+  collection: "memory-math-teacher"
+  compression:
+    trigger_tokens: 3072
+    target_tokens: 768
+    keep_recent_turns: 5
+  extract:
+    - accuracy_rate
+    - topics_covered
+    - weak_areas
+    - exercise_results
+    - next_step
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document]
+  pipeline: vl_then_reasoning
+  use_case: "Homework photos, textbook pages, handwritten solutions"
+
 integrations:
   telegram:
     token_secret: "openclaw-agent-tokens"

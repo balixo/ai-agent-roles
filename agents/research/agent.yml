@@ -31,6 +31,28 @@ capabilities:
   - Create flashcards and quiz questions
   - Track learning progress
 
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────────
+users: [gangadhar]
+memory:
+  collection: "memory-research"
+  compression:
+    trigger_tokens: 4096
+    target_tokens: 1024
+    keep_recent_turns: 4
+  extract:
+    - papers_read
+    - open_questions
+    - bookmarks
+    - key_facts
+    - next_step
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document, spreadsheet]
+  pipeline: vl_then_reasoning
+  use_case: "Research papers (PDF), data tables, charts, figures"
+
 integrations:
   qdrant:
     url: "http://qdrant.ai-agents.svc.cluster.local:6333"

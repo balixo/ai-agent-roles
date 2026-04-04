@@ -1,0 +1,203 @@
+# Multimodal Preprocessing Pipeline
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# When a user sends non-text media (images, PDFs, DOCX, Excel, audio, video)
+# to an agent routed to the 80B text-only model (GX10), the media is first
+# preprocessed by the vision-language model on minillm (.57) to extract text,
+# then the extracted text is forwarded to the 80B for reasoning.
+#
+# ── Flow ──────────────────────────────────────────────────────────────────────
+#
+#   User sends image/doc/audio/video
+#     │
+#     ▼
+#   ┌──────────────────────────────────────────┐
+#   │  1. Detect media type (MIME / extension)  │
+#   └──────────────┬───────────────────────────┘
+#                  │
+#                  ▼
+#   ┌──────────────────────────────────────────┐
+#   │  2. Route to appropriate extractor        │
+#   │     image/video → VL model (.57)          │
+#   │     pdf/docx    → text extraction + VL    │
+#   │     excel/csv   → tabular parser + VL     │
+#   │     audio       → whisper STT (.57)       │
+#   └──────────────┬───────────────────────────┘
+#                  │
+#                  ▼
+#   ┌──────────────────────────────────────────┐
+#   │  3. VL model extracts structured text     │
+#   │     - OCR for images/scanned docs         │
+#   │     - Captions for photos/diagrams        │
+#   │     - Table → markdown for spreadsheets   │
+#   │     - Frame descriptions for video        │
+#   │     - Transcript for audio                │
+#   └──────────────┬───────────────────────────┘
+#                  │
+#                  ▼
+#   ┌──────────────────────────────────────────┐
+#   │  4. Compose text prompt with extraction   │
+#   │     "[Extracted from {filename}]:\n..."   │
+#   │     + original user message               │
+#   └──────────────┬───────────────────────────┘
+#                  │
+#                  ▼
+#   ┌──────────────────────────────────────────┐
+#   │  5. Forward to primary model (80B GX10)   │
+#   │     for reasoning / answering             │
+#   └──────────────────────────────────────────┘
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pipeline Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+pipeline:
+  enabled: true
+
+  # ── VL Extraction Backend ────────────────────────────────────────────────
+  vl_backend:
+    backend: minillm
+    model: "qwen3-vl:4b-instruct"
+    url: "http://192.168.68.57:11434"
+    # Use /api/chat with image base64 for vision tasks
+    chat_endpoint: "/api/chat"
+    max_tokens: 4096
+    temperature: 0.1          # low temp for factual extraction
+    timeout_seconds: 120      # VL inference can be slow on large docs
+
+  # ── Speech-to-Text Backend ──────────────────────────────────────────────
+  stt_backend:
+    backend: minillm
+    model: "whisper:base"
+    url: "http://192.168.68.57:11434"
+    endpoint: "/api/generate"
+    timeout_seconds: 180      # audio transcription can be lengthy
+
+  # ── Primary Reasoning Backend (receives extracted text) ─────────────────
+  reasoning_backend:
+    backend: gx10
+    model: "qwen3-next-80b-a3b"
+    url: "http://192.168.68.92:8000/v1"
+    chat_endpoint: "/v1/chat/completions"
+
+  # ── Media Type Handlers ─────────────────────────────────────────────────
+  handlers:
+    image:
+      extensions: [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".svg"]
+      mime_types: ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff", "image/svg+xml"]
+      extractor: vl_vision
+      vl_prompt: |
+        Analyze this image thoroughly. Extract ALL text visible (OCR).
+        If it contains a diagram, chart, or table, describe the structure
+        and data in markdown format. Be precise and complete.
+      max_image_size_mb: 20
+
+    document:
+      extensions: [".pdf", ".docx", ".doc", ".pptx", ".ppt"]
+      mime_types: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "application/vnd.openxmlformats-officedocument.presentationml.presentation"]
+      extractor: doc_then_vl
+      # Step 1: python-based text extraction (PyMuPDF for PDF, python-docx for DOCX)
+      # Step 2: if pages contain images/scans, send each page image to VL model
+      text_extraction_first: true
+      fallback_to_vl_ocr: true    # OCR scanned pages via VL if text extraction yields nothing
+      vl_prompt: |
+        This is a page from a document. Extract ALL text content precisely.
+        Preserve headings, bullet points, and table structure as markdown.
+      max_pages: 50               # truncate very long docs
+      max_file_size_mb: 50
+
+    spreadsheet:
+      extensions: [".xlsx", ".xls", ".csv", ".tsv"]
+      mime_types: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel", "text/csv", "text/tab-separated-values"]
+      extractor: tabular_then_vl
+      # Step 1: parse with openpyxl/csv → convert to markdown table
+      # Step 2: if cells contain embedded images/charts, send to VL
+      text_extraction_first: true
+      fallback_to_vl_ocr: true
+      vl_prompt: |
+        This spreadsheet image contains a chart or embedded graphic.
+        Describe the data, axes, trends, and any labels precisely.
+      max_rows: 500               # truncate very large sheets
+      max_sheets: 10
+      max_file_size_mb: 25
+
+    video:
+      extensions: [".mp4", ".mov", ".avi", ".mkv", ".webm"]
+      mime_types: ["video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska", "video/webm"]
+      extractor: video_frames_vl
+      # Extract keyframes at interval, send each to VL for description
+      frame_interval_seconds: 10  # one frame every N seconds
+      max_frames: 30              # cap total frames sent to VL
+      vl_prompt: |
+        Describe this video frame in detail. Note any text, people,
+        objects, actions, and scene context visible.
+      # Also extract audio track → whisper STT if present
+      extract_audio: true
+      max_duration_seconds: 600   # 10 min max
+      max_file_size_mb: 200
+
+    audio:
+      extensions: [".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"]
+      mime_types: ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/flac", "audio/aac"]
+      extractor: whisper_stt
+      max_duration_seconds: 600   # 10 min max
+      max_file_size_mb: 100
+
+  # ── Output Composition ──────────────────────────────────────────────────
+  # How extracted text is composed into the prompt sent to the reasoning model
+  composition:
+    # Template for the system message injected before the extracted content
+    extraction_prefix: "[Extracted from {filename} ({media_type})]:"
+    # Separator between multiple extracted files
+    multi_file_separator: "\n---\n"
+    # Max tokens for extracted content (truncate if exceeded)
+    max_extraction_tokens: 16384
+    # If extraction exceeds max, summarize via VL before sending to 80B
+    summarize_on_overflow: true
+    overflow_prompt: |
+      The following extracted text is too long. Summarize it concisely,
+      preserving all key facts, numbers, table data, and conclusions.
+
+  # ── File Storage (temp) ─────────────────────────────────────────────────
+  temp_storage:
+    path: "/tmp/openclaw-media"
+    # Auto-cleanup after processing
+    cleanup_after_seconds: 300
+    # Max total temp storage
+    max_total_mb: 500
+
+  # ── Agents with Multimodal Support ──────────────────────────────────────
+  # Only these agents accept media uploads; others reject with a message
+  enabled_agents:
+    - family
+    - learning-coach
+    - math-teacher
+    - science-teacher
+    - english-teacher
+    - chinese-teacher
+    - history-teacher
+    - research
+    - dev
+    - sr-dev
+
+  # ── Agents WITHOUT Multimodal (reject media uploads) ────────────────────
+  # These agents handle text-only workflows; media uploads return an error
+  disabled_agents:
+    - sre
+    - ops
+    - tester
+    - jr-dev
+
+  # ── Security ────────────────────────────────────────────────────────────
+  security:
+    # Scan files for malicious content before processing
+    scan_uploads: true
+    # Reject files with double extensions (e.g. image.jpg.exe)
+    reject_double_extensions: true
+    # Allowed MIME types — anything not listed here is rejected
+    # (derived from handlers above, but explicit for security)
+    allowed_mime_prefix: ["image/", "audio/", "video/", "application/pdf", "application/vnd.", "text/csv", "text/tab-separated"]
+    # Max file size (hard limit, overrides per-handler limits)
+    max_file_size_mb: 200
+    # Rate limit: max media uploads per user per hour
+    max_uploads_per_user_per_hour: 30

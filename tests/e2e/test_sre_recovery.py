@@ -22,12 +22,16 @@ CONFIGS_DIR = Path(__file__).parent.parent.parent / "configs"
 AGENTS_DIR = Path(__file__).parent.parent.parent / "agents"
 
 
-def load_sre_persona() -> str:
-    """Load the SRE agent persona from agent.yml."""
+def load_sre_config() -> dict:
+    """Load the SRE agent config from agent.yml."""
     sre_path = AGENTS_DIR / "sre" / "agent.yml"
     with open(sre_path) as f:
-        config = yaml.safe_load(f)
-    return config["persona"]
+        return yaml.safe_load(f)
+
+
+def load_sre_persona() -> str:
+    """Load the SRE agent persona from agent.yml."""
+    return load_sre_config()["persona"]
 
 
 def load_backends() -> dict:
@@ -368,12 +372,22 @@ class TestVersionCheckScript:
 
     def test_sre_agent_has_version_monitoring(self):
         """SRE agent.yml must include version monitoring in persona."""
-        sre_path = AGENTS_DIR / "sre" / "agent.yml"
-        with open(sre_path) as f:
-            config = yaml.safe_load(f)
+        config = load_sre_config()
         persona = config["persona"]
         assert "Version Upgrade Monitoring" in persona or "version" in persona.lower(), \
             "SRE persona missing version monitoring section"
+
+    def test_sre_agent_has_status_trigger(self):
+        """SRE agent should document the `/status` health-check trigger."""
+        config = load_sre_config()
+        combined_text = (
+            f"{config.get('description', '')}\n{config.get('persona', '')}"
+        ).lower()
+
+        for expected in ["/status", "health check", "status line", "action"]:
+            assert expected in combined_text, (
+                f"SRE config missing expected `/status` trigger guidance: {expected}"
+            )
 
     def test_sre_agent_has_git_tool(self):
         """SRE agent must have git tool for creating upgrade PRs."""

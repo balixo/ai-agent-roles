@@ -32,6 +32,28 @@ capabilities:
   - Track conceptual understanding vs computational accuracy
   - Science Olympiad event preparation
 
+# ── Per-User Memory (from configs/memory.yml) ──────────────────────────────────
+users: [rishaan, gangadhar]
+memory:
+  collection: "memory-science-teacher"
+  compression:
+    trigger_tokens: 3072
+    target_tokens: 768
+    keep_recent_turns: 5
+  extract:
+    - accuracy_rate
+    - topics_covered
+    - weak_areas
+    - lab_experiments
+    - next_step
+
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document]
+  pipeline: vl_then_reasoning
+  use_case: "Lab diagrams, experiment photos, textbook pages, data tables"
+
 integrations:
   telegram:
     token_secret: "openclaw-agent-tokens"

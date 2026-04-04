@@ -1,0 +1,303 @@
+# Per-User Memory & Context Compression Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Every agent that interacts with users maintains independent per-user memory.
+# Chat context is compressed/consolidated after each session so the next session
+# starts with a concise state + plan of action, not raw history.
+#
+# ── Architecture ──────────────────────────────────────────────────────────────
+#
+#   ┌───────────────────────────────────────────────────────────────────────┐
+#   │                        Per-User Memory                               │
+#   │                                                                       │
+#   │  ┌─────────────┐  ┌──────────────────┐  ┌────────────────────────┐   │
+#   │  │   Profile    │  │  Session State   │  │  Compressed History    │   │
+#   │  │  (long-term) │  │  (active chat)   │  │  (rolling summary)    │   │
+#   │  ├─────────────┤  ├──────────────────┤  ├────────────────────────┤   │
+#   │  │ identity    │  │ current_topic    │  │ decisions[]            │   │
+#   │  │ preferences │  │ turns[]          │  │ unresolved_tasks[]     │   │
+#   │  │ goals       │  │ working_notes    │  │ key_facts[]            │   │
+#   │  │ constraints │  │ artifacts[]      │  │ constraints_learned[]  │   │
+#   │  │ agent_notes │  │ token_count      │  │ session_summaries[]    │   │
+#   │  └─────────────┘  └──────────────────┘  └────────────────────────┘   │
+#   │                                                                       │
+#   │  ┌──────────────────────────────────────────────────────────────┐     │
+#   │  │              Next Action State                                │     │
+#   │  │  next_step: "what the agent should do next"                  │     │
+#   │  │  blockers: ["anything preventing progress"]                   │     │
+#   │  │  pending_questions: ["unanswered from user"]                  │     │
+#   │  │  plan_of_action: "consolidated bullet plan for next session"  │     │
+#   │  └──────────────────────────────────────────────────────────────┘     │
+#   └───────────────────────────────────────────────────────────────────────┘
+#
+# ── Storage Backend ──────────────────────────────────────────────────────────
+# Qdrant: vector-indexed for semantic recall (filtered by user + agent + type)
+# Filesystem: markdown files for human-readable snapshots
+# Both are updated after each session.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global defaults (agents inherit; override per-agent below)
+# ─────────────────────────────────────────────────────────────────────────────
+
+defaults:
+  # ── Storage ──────────────────────────────────────────────────────────────
+  storage:
+    qdrant:
+      url: "http://qdrant.ai-agents.svc.cluster.local:6333"
+      # Each agent gets its own collection; per-user filtering via payload.user
+      collection_prefix: "memory"  # e.g. memory-learning-coach, memory-family
+    filesystem:
+      base_path: "/data/memory"    # PVC mount inside agent pods
+      # Structure: /data/memory/{user}/{agent}/
+      #   profile.yml          — long-term profile (rarely changes)
+      #   session-state.json   — active session (updated per turn)
+      #   compressed.md        — rolling compressed history
+      #   next-action.md       — plan of action for next session
+
+  # ── Compression ──────────────────────────────────────────────────────────
+  compression:
+    # Trigger compression when active context exceeds this token count
+    trigger_tokens: 2048
+    # After compression, target this size for the compressed summary
+    target_tokens: 512
+    # Keep the N most recent raw turns in addition to compressed summary
+    keep_recent_turns: 4
+    # Maximum number of session summaries to retain in rolling history
+    max_session_summaries: 20
+    # Compression runs at session end (mandatory) and mid-session (if over trigger)
+    strategy: "summarize-and-extract"
+    # What to extract during compression:
+    extract:
+      - decisions          # choices the user made
+      - unresolved_tasks   # things still open
+      - key_facts          # important info learned about the user/topic
+      - constraints        # limitations, preferences, rules discovered
+      - next_step          # what should happen next
+
+  # ── Session Lifecycle ────────────────────────────────────────────────────
+  lifecycle:
+    on_session_start:
+      - load_profile           # read {user}/{agent}/profile.yml
+      - load_compressed        # read {user}/{agent}/compressed.md
+      - load_next_action       # read {user}/{agent}/next-action.md
+      - inject_context         # build system prompt from above
+    on_turn:
+      - check_token_count      # if > trigger_tokens OR > 70% of model context → compress
+      - check_context_threshold # force compress if usage > maintenance.threshold.context_usage_percent
+    on_session_end:
+      - compress_context       # summarize full session → update compressed.md
+      - extract_next_action    # write next-action.md with plan
+      - update_profile         # persist any new facts/preferences to profile.yml
+      - embed_session          # embed session summary in Qdrant
+    on_idle_timeout:
+      - auto_save              # save state if user goes idle > 10 min
+      - compress_context       # compress before memory eviction
+
+  # ── Qdrant Schema ───────────────────────────────────────────────────────
+  # Every point in Qdrant carries these payload fields for filtering:
+  qdrant_payload_schema:
+    user: "string"             # gangadhar | sameena | rishaan
+    agent: "string"            # learning-coach | family | sre | ...
+    type: "string"             # profile | session | compressed | next-action | artifact
+    date: "string"             # ISO 8601 date
+    tags: "string[]"           # free-form tags for filtering
+
+  # ── Scheduled Maintenance (owned by SRE agent) ──────────────────────────
+  # SRE runs background compression for ALL agents' memory stores.
+  # This catches sessions that ended abruptly (crash, timeout, disconnect)
+  # without triggering the normal on_session_end compression lifecycle.
+  maintenance:
+    owner_agent: sre
+    schedule:
+      # Daily full sweep — compress any stale/oversized context
+      cron: "0 3 * * *"           # 03:00 SGT daily (Asia/Singapore)
+      timezone: "Asia/Singapore"
+    threshold:
+      # Trigger immediate compression when context reaches 70% of agent's max
+      # This runs on every turn check (on_turn lifecycle), not just scheduled
+      context_usage_percent: 70
+      # How it works:
+      #   effective_max = agent.model.context_length (from routing.yml)
+      #   current_usage = active session tokens + compressed.md tokens + profile tokens
+      #   if current_usage > (effective_max * 0.70) → force compression NOW
+    sweep_actions:
+      # What the 03:00 maintenance sweep does for each {user}/{agent}/ directory:
+      - check_stale_sessions     # find session-state.json older than 2h → compress
+      - compress_oversized       # compressed.md > target_tokens → re-summarize
+      - prune_old_summaries      # drop session_summaries beyond max_session_summaries
+      - gc_qdrant_duplicates     # deduplicate near-identical vectors (cosine > 0.98)
+      - update_next_action       # regenerate next-action.md from latest compressed state
+      - report_stats             # log per-user/per-agent token counts to stdout (Loki)
+    stale_session_threshold: "2h"  # sessions idle > 2h are considered abandoned
+    notify_on_completion: true     # SRE sends Telegram summary after sweep
+    notify_format: |
+      📊 Memory Maintenance (03:00 SGT)
+      Users: {users_processed}
+      Agents: {agents_processed}
+      Sessions compressed: {stale_compressed}
+      Oversized re-summarized: {oversized_count}
+      Qdrant duplicates pruned: {duplicates_pruned}
+      Total tokens reclaimed: {tokens_reclaimed}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Per-Agent Overrides
+# ─────────────────────────────────────────────────────────────────────────────
+
+agents:
+  learning-coach:
+    collection: "memory-learning-coach"
+    users: [gangadhar, sameena, rishaan]
+    compression:
+      trigger_tokens: 3072     # longer sessions need more headroom
+      target_tokens: 768
+      keep_recent_turns: 6
+    extra_extract:
+      - progress_update        # what was studied, scores, completion
+      - book_position          # current chapter/page in active book
+      - exercise_results       # pass/fail/partial on exercises
+    next_action_includes:
+      - schedule_check         # what day/track is next
+      - progress_gap           # what's overdue
+      - content_selection      # specific chapter/exercise to do next
+      - multi_tier_plan        # micro/short/standard/deep variants
+      - prerequisites          # what must be done before this content
+
+  family:
+    collection: "memory-family"
+    users: [gangadhar, sameena, rishaan]
+    compression:
+      trigger_tokens: 1536     # 4B model has small context, compress aggressively
+      target_tokens: 384
+      keep_recent_turns: 3
+    extra_extract:
+      - reminders              # things the user asked to be reminded about
+      - preferences_update     # food, schedule, logistics preferences
+    privacy:
+      isolate_users: true      # NEVER leak one user's conversation to another
+      shared_facts_only:
+        - family_schedule
+        - household_logistics
+
+  sre:
+    collection: "memory-sre"
+    users: [gangadhar]          # only gangadhar interacts with SRE
+    compression:
+      trigger_tokens: 2048
+      target_tokens: 512
+    extra_extract:
+      - incident_log           # what broke, root cause, fix applied
+      - pending_fixes          # things flagged but not yet PRed
+      - cluster_state_delta    # changes observed since last session
+
+  dev:
+    collection: "memory-dev"
+    users: [gangadhar]
+    compression:
+      trigger_tokens: 4096     # 80B model, larger context ok
+      target_tokens: 1024
+    extra_extract:
+      - active_branch          # current git branch + PR link
+      - code_decisions         # architecture/design choices made
+      - test_results           # last CI/test outcomes
+
+  research:
+    collection: "memory-research"
+    users: [gangadhar]
+    compression:
+      trigger_tokens: 4096
+      target_tokens: 1024
+    extra_extract:
+      - papers_read            # summaries of papers discussed
+      - open_questions         # research questions still unanswered
+      - bookmarks              # links/resources to revisit
+
+  # ── Teacher Agents (rishaan primary, gangadhar secondary) ────────────────
+  math-teacher:
+    collection: "memory-math-teacher"
+    users: [rishaan, gangadhar]
+    compression:
+      trigger_tokens: 3072
+      target_tokens: 768
+      keep_recent_turns: 5
+    extra_extract:
+      - accuracy_rate
+      - topics_covered
+      - weak_areas
+      - exercise_results
+
+  science-teacher:
+    collection: "memory-science-teacher"
+    users: [rishaan, gangadhar]
+    compression:
+      trigger_tokens: 3072
+      target_tokens: 768
+      keep_recent_turns: 5
+    extra_extract:
+      - accuracy_rate
+      - topics_covered
+      - weak_areas
+      - lab_experiments
+
+  english-teacher:
+    collection: "memory-english-teacher"
+    users: [rishaan, gangadhar]
+    compression:
+      trigger_tokens: 3072
+      target_tokens: 768
+      keep_recent_turns: 5
+    extra_extract:
+      - essay_scores
+      - reading_progress
+      - writing_feedback
+      - weak_areas
+
+  chinese-teacher:
+    collection: "memory-chinese-teacher"
+    users: [rishaan, gangadhar, sameena]
+    compression:
+      trigger_tokens: 3072
+      target_tokens: 768
+      keep_recent_turns: 5
+    extra_extract:
+      - hsk_level
+      - characters_learned
+      - grammar_patterns
+      - weak_areas
+
+  history-teacher:
+    collection: "memory-history-teacher"
+    users: [rishaan, gangadhar]
+    compression:
+      trigger_tokens: 3072
+      target_tokens: 768
+      keep_recent_turns: 5
+    extra_extract:
+      - periods_covered
+      - dbq_scores
+      - essay_feedback
+      - weak_areas
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Users — household roster (agents reference by user ID)
+# ─────────────────────────────────────────────────────────────────────────────
+
+users:
+  gangadhar:
+    display_name: "Gangadhar"
+    telegram_id: 1871293383
+    agents: [learning-coach, family, sre, dev, research, ops, math-teacher, science-teacher, english-teacher, chinese-teacher, history-teacher]
+    profile_source: "learning-roadmap/profiles/gangadhar.yml"
+
+  sameena:
+    display_name: "Sameena"
+    telegram_id: null           # TBD — add when Telegram bot is registered
+    agents: [learning-coach, family, chinese-teacher]
+    profile_source: "learning-roadmap/profiles/sameena.yml"
+
+  rishaan:
+    display_name: "Rishaan"
+    telegram_id: null           # TBD
+    agents: [learning-coach, family, math-teacher, science-teacher, english-teacher, chinese-teacher, history-teacher]
+    profile_source: "learning-roadmap/profiles/rishaan.yml"
+    # Rishaan's daily tutoring is managed by ai-tutor-prompts teacher agents
+    # LearningCoach gets a weekly summary only

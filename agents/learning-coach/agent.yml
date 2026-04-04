@@ -170,6 +170,13 @@ integrations:
     token_secret: "openclaw-agent-tokens"
     token_key: "learning-coach-bot-token"
 
+# ── Multimodal Media Support (from configs/multimodal.yml) ──────────────────
+multimodal:
+  enabled: true
+  accepted_media: [image, document, spreadsheet, audio]
+  pipeline: vl_then_reasoning
+  use_case: "Textbook pages, handwritten solutions, diagrams, lecture audio, data tables"
+
 # ── Session Lifecycle ───────────────────────────────────────────────────────
 # 1. SESSION START: identify user → load profile → load next-session.md → ask time
 # 2. DURING SESSION: teach/exercise/review → log notes → track progress
@@ -229,3 +236,32 @@ rag_sources:
     description: "Legacy track progress files (Gangadhar)"
   - path: "learning-roadmap/journal/**/*.md"
     description: "Weekly reflections (shared)"
+
+# ── Per-User Memory & Context Compression (from configs/memory.yml) ──────────
+memory:
+  collection: "memory-learning-coach"
+  compression:
+    trigger_tokens: 3072
+    target_tokens: 768
+    keep_recent_turns: 6
+    strategy: "summarize-and-extract"
+  extract:
+    - decisions
+    - unresolved_tasks
+    - key_facts
+    - constraints
+    - next_step
+    - progress_update
+    - book_position
+    - exercise_results
+  lifecycle:
+    on_session_start:
+      - load_profile
+      - load_compressed        # {user}/learning-coach/compressed.md
+      - load_next_action       # {user}/learning-coach/next-action.md
+      - inject_context
+    on_session_end:
+      - compress_context       # summarize chat → compressed.md
+      - extract_next_action    # plan of action → next-action.md
+      - update_profile         # persist new facts/preferences
+      - embed_session          # upsert summary to Qdrant

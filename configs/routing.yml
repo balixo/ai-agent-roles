@@ -179,3 +179,23 @@ routing:
   vision:
     backend: minillm
     model: "qwen3-vl-4b"
+
+  # ── Speech-to-Text routes to minillm ──────────────────────────────────
+  stt:
+    backend: minillm
+    model: "whisper-base"
+
+  # ── Multimodal Preprocessing Pipeline ─────────────────────────────────
+  # When agents routed to the text-only 80B (GX10) receive media files,
+  # the pipeline intercepts, extracts text via VL/STT on minillm (.57),
+  # then forwards the extracted text to the 80B for reasoning.
+  # Full config: configs/multimodal.yml
+  multimodal:
+    enabled: true
+    config_file: "configs/multimodal.yml"
+    vl_backend: minillm
+    vl_model: "qwen3-vl-4b"
+    stt_backend: minillm
+    stt_model: "whisper-base"
+    reasoning_backend: gx10
+    reasoning_model: "qwen3-next-80b-a3b"

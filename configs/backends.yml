@@ -40,7 +40,11 @@ backends:
         max_tokens: 4096
       - id: "qwen3-vl:4b-instruct"
         alias: "qwen3-vl-4b"
-        purpose: "Vision LLM (image captioning)"
+        purpose: "Vision LLM (image captioning, OCR, document/chart extraction)"
+        max_tokens: 4096
+      - id: "whisper:base"
+        alias: "whisper-base"
+        purpose: "Speech-to-text (audio transcription for multimodal pipeline)"
         max_tokens: 4096
 
   jetson:

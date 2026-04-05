@@ -9,7 +9,7 @@
 # ── Load Balancing Strategy ─────────────────────────────────────────────────
 # 1. vLLM internal: PagedAttention multiplexes concurrent requests for 80B MoE
 # 2. Single model: Qwen3-Next-80B-A3B-NVFP4 uses 128 GB unified memory (65K ctx)
-# 3. Overflow: If GX10 queue > threshold, route to minillm (4B)
+# 3. Overflow: If GX10 queue > threshold, route to minillm (qwen3-vl:4b-instruct)
 # 4. Desktop Ollama is Gangadhar's PERSONAL interactive session ONLY — never
 #    used by autonomous agents as primary or fallback.
 #
@@ -31,12 +31,12 @@ routing:
       context_length: 65536
       thinking_mode: true
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Feature implementation needs strong reasoning + full project context"
 
     jr-dev:
       backend: minillm
-      model: "qwen3.5-4b-ollama"
+      model: "qwen3-vl-4b"
       context_length: 4096
       thinking_mode: false
       fallback_backend: gx10
@@ -49,12 +49,12 @@ routing:
       context_length: 65536
       thinking_mode: true
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Code review and architecture guidance require depth + full codebase"
 
     sre:
       backend: minillm
-      model: "qwen3.5-4b-ollama"
+      model: "qwen3-vl-4b"
       context_length: 4096
       thinking_mode: false
       fallback_backend: gx10
@@ -63,7 +63,7 @@ routing:
 
     tester:
       backend: minillm
-      model: "qwen3.5-4b-ollama"
+      model: "qwen3-vl-4b"
       context_length: 4096
       thinking_mode: false
       fallback_backend: gx10
@@ -79,7 +79,7 @@ routing:
       temperature: 0.6
       top_p: 0.95
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "AMC/AP Calc requires deep mathematical reasoning with step-by-step proofs"
 
     science-teacher:
@@ -90,7 +90,7 @@ routing:
       temperature: 0.6
       top_p: 0.95
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Physics/chemistry derivations need calculus-level reasoning"
 
     english-teacher:
@@ -101,7 +101,7 @@ routing:
       temperature: 0.7
       top_p: 0.8
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Writing feedback benefits from 80B quality; no thinking mode needed"
 
     chinese-teacher:
@@ -112,7 +112,7 @@ routing:
       temperature: 0.7
       top_p: 0.8
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Qwen-family is natively strong in Chinese; 80B for best quality"
 
     history-teacher:
@@ -123,13 +123,13 @@ routing:
       temperature: 0.7
       top_p: 0.8
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Factual recall + essay analysis on 80B; fallback 4B for simple Q&A"
 
     # ── Family Agent ──────────────────────────────────────────────────────
     family:
       backend: minillm
-      model: "qwen3.5-4b-ollama"
+      model: "qwen3-vl-4b"
       context_length: 4096
       thinking_mode: false
       temperature: 0.7
@@ -141,7 +141,7 @@ routing:
     # ── Infrastructure Agents ─────────────────────────────────────────────
     ops:
       backend: minillm
-      model: "qwen3.5-4b-ollama"
+      model: "qwen3-vl-4b"
       context_length: 4096
       thinking_mode: false
       fallback_backend: gx10
@@ -154,7 +154,7 @@ routing:
       context_length: 32768
       thinking_mode: false
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Paper summarization and learning Q&A benefit from 80B depth"
 
     # ── Learning Coach ────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ routing:
       context_length: 65536
       thinking_mode: true
       fallback_backend: minillm
-      fallback_model: "qwen3.5-4b-ollama"
+      fallback_model: "qwen3-vl-4b"
       reason: "Multi-user learning coach needs deep reasoning + full RAG context"
       per_user_override:
         sameena: { model: "qwen3-next-80b-a3b", thinking_mode: false, context_length: 32768 }

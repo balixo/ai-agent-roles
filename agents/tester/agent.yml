@@ -13,7 +13,7 @@ persona: |
   Comment on PRs with test findings and coverage reports.
 
 model:
-  primary: "qwen3.5-4b-ollama"
+  primary: "qwen3-vl-4b"
   backend: minillm
   context_length: 4096
   thinking_mode: false

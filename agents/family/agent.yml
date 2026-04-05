@@ -34,7 +34,7 @@ persona: |
   Reference family documents and past conversations when relevant.
 
 model:
-  primary: "qwen3.5-4b-ollama"
+  primary: "qwen3-vl-4b"
   backend: minillm
   context_length: 4096
   thinking_mode: false

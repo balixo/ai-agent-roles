@@ -109,7 +109,7 @@ model:
   backend: gx10
   context_length: 65536
   thinking_mode: true
-  fallback: "qwen3.5-4b-ollama"
+  fallback: "qwen3-vl-4b"
   fallback_backend: minillm
   per_user_override:
     sameena: { model: "qwen3-next-80b-a3b", thinking_mode: false }

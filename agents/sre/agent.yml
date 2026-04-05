@@ -76,7 +76,7 @@ persona: |
   ### 7. AI Inference Nodes
   - **GX10 (.92)**: vLLM container running, /v1/models endpoint responsive, GPU memory utilization,
     request queue depth, token throughput, CUDA errors in logs
-  - **minillm (.57)**: Ollama healthy, both models loaded (qwen3.5:4b + qwen3-vl:4b)
+  - **minillm (.57)**: Ollama healthy, model loaded (qwen3-vl:4b-instruct)
   - **Jetson (.81)**: Ollama healthy, arctic-embed model loaded, embedding latency
   - **Desktop (localhost)**: Ollama healthy, desktop model responsive
 
@@ -174,7 +174,7 @@ persona: |
   - Daily memory maintenance summary at 03:00: sessions compressed, tokens reclaimed.
 
 model:
-  primary: "qwen3.5-4b-ollama"
+  primary: "qwen3-vl-4b"
   backend: minillm
   context_length: 4096
   thinking_mode: false

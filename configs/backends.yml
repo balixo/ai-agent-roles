@@ -34,10 +34,6 @@ backends:
     engine: ollama
     health_endpoint: "/api/tags"
     models:
-      - id: "qwen3.5:4b"
-        alias: "qwen3.5-4b-ollama"
-        purpose: "Text LLM (chat, aider backend)"
-        max_tokens: 4096
       - id: "qwen3-vl:4b-instruct"
         alias: "qwen3-vl-4b"
         purpose: "Vision LLM (image captioning, OCR, document/chart extraction)"
